@@ -38,7 +38,9 @@ if (!initialized) {
     } catch (error) {
       console.error('Error parsing FIREBASE_SERVICE_ACCOUNT_JSON:', error);
     }
-  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+  }
+  
+  if (!initialized && process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
     try {
       admin.initializeApp({
         credential: admin.credential.cert(process.env.FIREBASE_SERVICE_ACCOUNT_PATH)
@@ -46,9 +48,11 @@ if (!initialized) {
       console.log('Firebase Admin initialized from JSON path.');
       initialized = true;
     } catch (e) {
-      console.error('Error initializing from path:', e);
+      console.error('Error initializing from path:', e.message);
     }
-  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  }
+
+  if (!initialized && process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
     try {
       admin.initializeApp({
         credential: admin.credential.cert({
