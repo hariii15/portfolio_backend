@@ -50,7 +50,7 @@ if (!initialized) {
     }
   }
 }
-
+  
 // 3. Fallback to default ADC if still not initialized
 if (!initialized) {
   try {
