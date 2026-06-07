@@ -48,6 +48,20 @@ if (!initialized) {
     } catch (e) {
       console.error('Error initializing from path:', e);
     }
+  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+        })
+      });
+      console.log('Firebase Admin initialized from individual env variables.');
+      initialized = true;
+    } catch (error) {
+      console.error('Error initializing from individual env variables:', error);
+    }
   }
 }
   
