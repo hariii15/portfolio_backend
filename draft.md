@@ -35,4 +35,56 @@ I strongly believe that this is the place where we have to shift ourselves back 
 ## From Prototype to Production :
 Dont get me wrong, There is nothing inherently wrong in using LLM for getting things done in prototype, It will make a HUGE impact in hackathon builds, and small tools that we use it for ourselves.
 
-But the Probl
+But *el problema* is that prototype has a tendency to hide questions that production eventually forces, if we adapt ourselves for it then we will have a mindset of building a product, not just a project.
+
+Because if you are the only one who's gonna use the application then you can build it however we want, Trust me when i build tools for me, i dont care about wether it loads under 200ms or not, but if you are building a application a product, and you have just vibe coded to use a LLM for a use case, apparently if the API call fails and makes 3 or 4 calls in the background behind the scenes.. you may not even notice.
+
+imagine that your application receives 10,000 requests a day. and for half of the request your application cant handle the traffic or you're facing model availability issue, it's 25,000 model invocations.
+
+Now increase the user base by a order of Magnitude. The Architecture itself hasn't changed, but the characteristics of the system has changed completely. using agents and LLM at scale is a vast concept and we are not covering that today, so i will keep it simple by saying we need to ask ourselves that whether we can these systems can be replaced by LLM. it is whether replacing them actually benefit us.
+
+## Intelligence and Computation:
+
+I believe that one of the easiest way to overuse the LLM is to confuse a problem that involves language with a problem that require intelligence. 
+
+**They are not always the same.**
+
+let us take a simple example:
+
+we are writing a simple request to query *"Show me all the purchase order above certain amount, that has been placed this month"*
+
+There is certainly language involved in this right, the user is not sending the actual db query, they are prompting the business logic in Natural language. But once the request is understood, the actual operation is *fairly straight forward*.
+
+after understanding the context the whole process becomes relatively simple and comes down to : filter -> compare -> apply conditions -> sort and aggregate -> return 
+
+None of this operation inherently require LLM. A DB is exceptionally good at this. 
+
+***The same Distinction can appears in many other places.***
+
+*we don't want LLM to decide whether the user has permission to access certain resource or not*
+*we don't want LLM to retrieve a document that matches a particular query*
+
+these are Computational problems, and we have systems that are designed to solve this. 
+
+**On the other hand lets look at a text that says *im looking for customers who might be interested to buy the new product we planned to launch soon***
+
+Here there is a TON of ambiguity. this is one of the use cases that LLM provide genuine value. 
+
+In other words, understanding a problem and then executing the solution do not necessarily has to happen in the same system.
+
+This is not a new idea, Software Engineering is built around this principle
+
+*we don't ask the DB to render the data*
+*we don't ask a frontend framework to manage the database transactions*
+*we don't ask a cache manager to perform business logic*
+
+we separate responsibilities, which allows each component to do its job efficiently. in the same manner LLM need not be treated differently just because it is capable of doing many things. 
+
+i would like to share a interesting example here, which i believe will give us the proper understanding on what i'm trying to say here.
+
+**Semantic Data Retrieval**. i'm sure most of the Guys just read that as RAG. *lol*
+
+I suppose This is one of the common topics where people mix things up, to retrieve semantic data you dont have to manage a vector DB, and prompt an LLM to retrieve the data every time. we can break things down by just using a embedding model to convert the required fields to vectors, store them in a standard DB, whenever you need want to perform semantic search you just need to pass the input query to the same embedding model get the vector run a similarity search over two vectors. *badaBING badaBOOM!!*
+
+You got the document that are relevant to the input that you have just gave, by cutting the cost off by 1/10th if not more!
+
