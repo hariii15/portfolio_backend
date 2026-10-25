@@ -88,6 +88,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Admin session verification (used by the admin UI guards)
+app.get('/api/auth/verify', checkAdmin, (req, res) => {
+  res.json({ ok: true, uid: req.user.uid });
+});
+
 // 1. GET /api/blogs (Public / Admin listing)
 app.get('/api/blogs', optionalAdmin, async (req, res) => {
   try {
