@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
-import { readDB, writeDB, generateSlug, estimateReadingTime } from './db.js';
+import { readDB, writeDB, readActivity, writeActivity, generateSlug, estimateReadingTime } from './db.js';
 import { checkAdmin, optionalAdmin } from './auth.js';
 
 dotenv.config();
@@ -249,6 +249,41 @@ app.delete('/api/blogs/:id', checkAdmin, async (req, res) => {
     }
     await writeDB(filtered);
     res.json({ message: 'Blog post deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. GET /api/activity (Admin activity feed)
+app.get('/api/activity', checkAdmin, async (req, res) => {
+  try {
+    const items = await readActivity();
+    res.json(items.slice().reverse());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. POST /api/activity (Admin records a completed tool session)
+app.post('/api/activity', checkAdmin, async (req, res) => {
+  try {
+    const { type, data } = req.body;
+    if (type !== 'typing' && type !== 'quiz') {
+      return res.status(400).json({ error: 'Activity type must be "typing" or "quiz".' });
+    }
+
+    const items = await readActivity();
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+      type,
+      uid: req.user.uid,
+      data: data && typeof data === 'object' ? data : {},
+      createdAt: new Date().toISOString(),
+    };
+
+    items.push(entry);
+    await writeActivity(items.slice(-2000));
+    res.status(201).json(entry);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

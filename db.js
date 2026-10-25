@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DB_PATH = path.resolve(__dirname, 'blogs.json');
+const ACTIVITY_PATH = path.resolve(__dirname, 'activity.json');
 
 export async function readDB() {
   try {
@@ -22,6 +23,23 @@ export async function readDB() {
 
 export async function writeDB(data) {
   await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+export async function readActivity() {
+  try {
+    const data = await fs.readFile(ACTIVITY_PATH, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      await writeActivity([]);
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function writeActivity(data) {
+  await fs.writeFile(ACTIVITY_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
 export function generateSlug(title) {
