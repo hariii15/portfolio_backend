@@ -268,8 +268,8 @@ app.get('/api/activity', checkAdmin, async (req, res) => {
 app.post('/api/activity', checkAdmin, async (req, res) => {
   try {
     const { type, data } = req.body;
-    if (type !== 'typing' && type !== 'quiz') {
-      return res.status(400).json({ error: 'Activity type must be "typing" or "quiz".' });
+    if (type !== 'typing' && type !== 'quiz' && type !== 'cube') {
+      return res.status(400).json({ error: 'Activity type must be "typing", "quiz", or "cube".' });
     }
 
     const items = await readActivity();
