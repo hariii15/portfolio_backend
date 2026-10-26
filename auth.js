@@ -1,4 +1,4 @@
-import admin from 'firebase-admin';
+import { getFirebaseAdmin } from './firebase.js';
 
 export async function checkAdmin(req, res, next) {
   try {
@@ -8,6 +8,7 @@ export async function checkAdmin(req, res, next) {
     }
 
     const token = authHeader.split(' ')[1];
+    const admin = getFirebaseAdmin();
     const decodedToken = await admin.auth().verifyIdToken(token);
     
     const adminUid = process.env.ADMIN_UID || '5gEMx5ehKyUHPY69R2552cMOli52';
@@ -35,6 +36,7 @@ export async function optionalAdmin(req, res, next) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
+      const admin = getFirebaseAdmin();
       const decodedToken = await admin.auth().verifyIdToken(token);
       const adminUid = process.env.ADMIN_UID || '5gEMx5ehKyUHPY69R2552cMOli52';
       if (adminUid && decodedToken.uid === adminUid) {

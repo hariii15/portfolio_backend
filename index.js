@@ -1,83 +1,27 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import admin from 'firebase-admin';
-import fs from 'fs';
-import path from 'path';
-import { readDB, writeDB, readActivity, writeActivity, generateSlug, estimateReadingTime } from './db.js';
+import { initFirebase, isFirestoreEnabled } from './firebase.js';
 import { checkAdmin, optionalAdmin } from './auth.js';
+import {
+  listBlogs,
+  getBlogBySlug,
+  getBlogById,
+  createBlog,
+  updateBlog,
+  deleteBlog,
+} from './repositories/blogs.js';
+import {
+  ACTIVITY_TYPES,
+  createActivity,
+  listActivity,
+} from './repositories/activity.js';
+import { generateSlug, estimateReadingTime } from './db.js';
 
 dotenv.config();
+initFirebase();
 
-let initialized = false;
-
-// 1. Auto-detect service-account.json in the backend root
-const defaultServiceAccountPath = path.resolve('service-account.json');
-if (fs.existsSync(defaultServiceAccountPath)) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(defaultServiceAccountPath)
-    });
-    console.log('Firebase Admin initialized automatically from local service-account.json');
-    initialized = true;
-  } catch (error) {
-    console.error('Error auto-initializing from service-account.json:', error);
-  }
-}
-
-// 2. Fallbacks if not auto-initialized
-if (!initialized) {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    try {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      console.log('Firebase Admin initialized from JSON env variable.');
-      initialized = true;
-    } catch (error) {
-      console.error('Error parsing FIREBASE_SERVICE_ACCOUNT_JSON:', error);
-    }
-  }
-  
-  if (!initialized && process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.cert(process.env.FIREBASE_SERVICE_ACCOUNT_PATH)
-      });
-      console.log('Firebase Admin initialized from JSON path.');
-      initialized = true;
-    } catch (e) {
-      console.error('Error initializing from path:', e.message);
-    }
-  }
-
-  if (!initialized && process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-        })
-      });
-      console.log('Firebase Admin initialized from individual env variables.');
-      initialized = true;
-    } catch (error) {
-      console.error('Error initializing from individual env variables:', error);
-    }
-  }
-}
-  
-// 3. Fallback to default ADC if still not initialized
-if (!initialized) {
-  try {
-    admin.initializeApp();
-    console.log('Firebase Admin initialized with default credentials.');
-  } catch (e) {
-    console.warn('Firebase Admin failed default initialization. Auth validation will fail until config is corrected.', e.message);
-  }
-}
+const storage = isFirestoreEnabled() ? 'firestore' : 'json';
 
 const app = express();
 app.use(cors());
@@ -85,7 +29,7 @@ app.use(express.json());
 
 // Public health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({ status: 'ok', storage, time: new Date().toISOString() });
 });
 
 // Admin session verification (used by the admin UI guards)
@@ -96,28 +40,29 @@ app.get('/api/auth/verify', checkAdmin, (req, res) => {
 // 1. GET /api/blogs (Public / Admin listing)
 app.get('/api/blogs', optionalAdmin, async (req, res) => {
   try {
-    const blogs = await readDB();
+    const blogs = await listBlogs();
     let filtered = blogs;
 
     // Visitors only see published posts
     if (!req.isAdmin) {
-      filtered = blogs.filter(b => b.published === true);
+      filtered = blogs.filter((b) => b.published === true);
     }
 
     const { q, tag } = req.query;
     if (q) {
       const query = q.toLowerCase();
-      filtered = filtered.filter(b => 
-        b.title.toLowerCase().includes(query) || 
-        b.excerpt.toLowerCase().includes(query) || 
-        b.content.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (b) =>
+          (b.title || '').toLowerCase().includes(query) ||
+          (b.excerpt || '').toLowerCase().includes(query) ||
+          (b.content || '').toLowerCase().includes(query)
       );
     }
 
     if (tag) {
       const tagQuery = tag.toLowerCase();
-      filtered = filtered.filter(b => 
-        b.tags && b.tags.some(t => t.toLowerCase() === tagQuery)
+      filtered = filtered.filter(
+        (b) => b.tags && b.tags.some((t) => t.toLowerCase() === tagQuery)
       );
     }
 
@@ -133,8 +78,7 @@ app.get('/api/blogs', optionalAdmin, async (req, res) => {
 // 2. GET /api/blogs/:slug (Public / Admin single details)
 app.get('/api/blogs/:slug', optionalAdmin, async (req, res) => {
   try {
-    const blogs = await readDB();
-    const blog = blogs.find(b => b.slug === req.params.slug);
+    const blog = await getBlogBySlug(req.params.slug);
     if (!blog) {
       return res.status(404).json({ error: 'Blog post not found' });
     }
@@ -158,13 +102,13 @@ app.post('/api/blogs', checkAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Title and Content are required.' });
     }
 
-    const blogs = await readDB();
-    const id = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-    
-    let slug = customSlug ? generateSlug(customSlug) : generateSlug(title);
+    const blogs = await listBlogs();
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+    const slug = customSlug ? generateSlug(customSlug) : generateSlug(title);
     let uniqueSlug = slug;
     let counter = 1;
-    while (blogs.some(b => b.slug === uniqueSlug)) {
+    while (blogs.some((b) => b.slug === uniqueSlug)) {
       uniqueSlug = `${slug}-${counter}`;
       counter++;
     }
@@ -176,16 +120,15 @@ app.post('/api/blogs', checkAdmin, async (req, res) => {
       excerpt: excerpt || '',
       content,
       coverImage: coverImage || '',
-      tags: Array.isArray(tags) ? tags.map(t => t.trim()) : [],
+      tags: Array.isArray(tags) ? tags.map((t) => t.trim()) : [],
       published: published === true || published === 'true',
       readingTime: estimateReadingTime(content),
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
-    blogs.push(newBlog);
-    await writeDB(blogs);
-    res.status(201).json(newBlog);
+    const saved = await createBlog(newBlog);
+    res.status(201).json(saved);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -195,15 +138,14 @@ app.post('/api/blogs', checkAdmin, async (req, res) => {
 app.put('/api/blogs/:id', checkAdmin, async (req, res) => {
   try {
     const { title, excerpt, content, coverImage, tags, published, slug: customSlug } = req.body;
-    const blogs = await readDB();
-    const index = blogs.findIndex(b => b.id === req.params.id);
-    
-    if (index === -1) {
+    const existingBlog = await getBlogById(req.params.id);
+
+    if (!existingBlog) {
       return res.status(404).json({ error: 'Blog post not found' });
     }
 
-    const existingBlog = blogs[index];
-    
+    const blogs = await listBlogs();
+
     let slug = existingBlog.slug;
     if (title && title !== existingBlog.title && !customSlug) {
       slug = generateSlug(title);
@@ -213,7 +155,7 @@ app.put('/api/blogs/:id', checkAdmin, async (req, res) => {
 
     let uniqueSlug = slug;
     let counter = 1;
-    while (blogs.some(b => b.slug === uniqueSlug && b.id !== existingBlog.id)) {
+    while (blogs.some((b) => b.slug === uniqueSlug && b.id !== existingBlog.id)) {
       uniqueSlug = `${slug}-${counter}`;
       counter++;
     }
@@ -225,15 +167,18 @@ app.put('/api/blogs/:id', checkAdmin, async (req, res) => {
       excerpt: excerpt !== undefined ? excerpt : existingBlog.excerpt,
       content: content !== undefined ? content : existingBlog.content,
       coverImage: coverImage !== undefined ? coverImage : existingBlog.coverImage,
-      tags: Array.isArray(tags) ? tags.map(t => t.trim()) : existingBlog.tags,
-      published: published !== undefined ? (published === true || published === 'true') : existingBlog.published,
-      readingTime: content !== undefined ? estimateReadingTime(content) : existingBlog.readingTime,
-      updatedAt: new Date().toISOString()
+      tags: Array.isArray(tags) ? tags.map((t) => t.trim()) : existingBlog.tags,
+      published:
+        published !== undefined
+          ? published === true || published === 'true'
+          : existingBlog.published,
+      readingTime:
+        content !== undefined ? estimateReadingTime(content) : existingBlog.readingTime,
+      updatedAt: new Date().toISOString(),
     };
 
-    blogs[index] = updatedBlog;
-    await writeDB(blogs);
-    res.json(updatedBlog);
+    const saved = await updateBlog(existingBlog.id, updatedBlog);
+    res.json(saved);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -242,12 +187,10 @@ app.put('/api/blogs/:id', checkAdmin, async (req, res) => {
 // 5. DELETE /api/blogs/:id (Admin delete)
 app.delete('/api/blogs/:id', checkAdmin, async (req, res) => {
   try {
-    const blogs = await readDB();
-    const filtered = blogs.filter(b => b.id !== req.params.id);
-    if (filtered.length === blogs.length) {
+    const deleted = await deleteBlog(req.params.id);
+    if (!deleted) {
       return res.status(404).json({ error: 'Blog post not found' });
     }
-    await writeDB(filtered);
     res.json({ message: 'Blog post deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -257,8 +200,8 @@ app.delete('/api/blogs/:id', checkAdmin, async (req, res) => {
 // 6. GET /api/activity (Admin activity feed)
 app.get('/api/activity', checkAdmin, async (req, res) => {
   try {
-    const items = await readActivity();
-    res.json(items.slice().reverse());
+    const items = await listActivity();
+    res.json(items);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -268,21 +211,18 @@ app.get('/api/activity', checkAdmin, async (req, res) => {
 app.post('/api/activity', checkAdmin, async (req, res) => {
   try {
     const { type, data } = req.body;
-    if (type !== 'typing' && type !== 'quiz' && type !== 'cube') {
-      return res.status(400).json({ error: 'Activity type must be "typing", "quiz", or "cube".' });
+    if (!ACTIVITY_TYPES.includes(type)) {
+      return res
+        .status(400)
+        .json({ error: 'Activity type must be "typing", "quiz", or "cube".' });
     }
 
-    const items = await readActivity();
-    const entry = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+    const entry = await createActivity({
       type,
       uid: req.user.uid,
       data: data && typeof data === 'object' ? data : {},
-      createdAt: new Date().toISOString(),
-    };
+    });
 
-    items.push(entry);
-    await writeActivity(items.slice(-2000));
     res.status(201).json(entry);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -291,5 +231,5 @@ app.post('/api/activity', checkAdmin, async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT} (storage: ${storage})`);
 });

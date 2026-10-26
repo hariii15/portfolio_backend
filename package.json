@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test:activity": "node scripts/test-activity.mjs",
+    "db:migrate": "node scripts/migrate-to-firestore.mjs",
+    "db:migrate:dry": "node scripts/migrate-to-firestore.mjs --dry-run"
   },
   "dependencies": {
     "cors": "^2.8.5",
