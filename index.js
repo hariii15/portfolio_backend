@@ -16,6 +16,11 @@ import {
   createActivity,
   listActivity,
 } from './repositories/activity.js';
+import {
+  clearRoadmapProgress,
+  getRoadmapProgress,
+  setRoadmapProgress,
+} from './repositories/roadmap.js';
 import { generateSlug, estimateReadingTime } from './db.js';
 
 dotenv.config();
@@ -224,6 +229,36 @@ app.post('/api/activity', checkAdmin, async (req, res) => {
     });
 
     res.status(201).json(entry);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Public study progress for the Jayy ML roadmap. This intentionally has no
+// admin guard so visitors can use the roadmap without signing in.
+app.get('/api/jayy-roadmap/progress', async (req, res) => {
+  try {
+    res.json(await getRoadmapProgress());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/jayy-roadmap/progress', async (req, res) => {
+  try {
+    const { itemId, checked } = req.body || {};
+    if (typeof checked !== 'boolean') {
+      return res.status(400).json({ error: 'checked must be a boolean.' });
+    }
+    res.json(await setRoadmapProgress(itemId, checked));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete('/api/jayy-roadmap/progress', async (req, res) => {
+  try {
+    res.json(await clearRoadmapProgress());
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

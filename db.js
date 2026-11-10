@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 
 const DB_PATH = path.resolve(__dirname, 'blogs.json');
 const ACTIVITY_PATH = path.resolve(__dirname, 'activity.json');
+const ROADMAP_PROGRESS_PATH = path.resolve(__dirname, 'roadmap-progress.json');
 
 export async function readDB() {
   try {
@@ -40,6 +41,20 @@ export async function readActivity() {
 
 export async function writeActivity(data) {
   await fs.writeFile(ACTIVITY_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+export async function readRoadmapProgress() {
+  try {
+    const data = await fs.readFile(ROADMAP_PROGRESS_PATH, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') return { items: {} };
+    throw error;
+  }
+}
+
+export async function writeRoadmapProgress(data) {
+  await fs.writeFile(ROADMAP_PROGRESS_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
 export function generateSlug(title) {
