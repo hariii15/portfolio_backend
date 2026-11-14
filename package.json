@@ -4,6 +4,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "test:film": "node scripts/test-film.mjs",
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test:activity": "node scripts/test-activity.mjs",
