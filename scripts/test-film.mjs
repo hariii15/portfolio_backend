@@ -57,6 +57,40 @@ assert.throws(
   /Shots must/,
 );
 assert.throws(() => validateProject({ ...project, story: [] }), /Story/);
+const standalone = {
+  id: randomUUID(),
+  title: "A standalone frame",
+  status: "Planned",
+};
+assert.throws(
+  () => validateProject({ ...project, shots: [{ title: "Missing ID" }] }),
+  /unique/,
+);
+assert.equal(
+  validateProject({
+    ...project,
+    shots: [standalone],
+    shotOrder: [standalone.id, scene.shots[0].id],
+  }).shots.length,
+  1,
+);
+assert.throws(() => validateProject({ ...project, shots: {} }), /Standalone/);
+assert.throws(
+  () => validateProject({ ...project, shots: [scene.shots[0]] }),
+  /unique/,
+);
+assert.throws(
+  () => validateProject({ ...project, shotOrder: ["missing"] }),
+  /Shot order/,
+);
+assert.throws(
+  () =>
+    validateProject({
+      ...project,
+      shotOrder: [scene.shots[0].id, scene.shots[0].id],
+    }),
+  /Shot order/,
+);
 console.log(
   "PASS: project bounds, required data, duplicate IDs, and relationships",
 );
@@ -113,6 +147,30 @@ if (process.argv.includes("--firestore")) {
     );
     console.log(
       "PASS: Firestore create, reload, update, checklist persistence, ownership, and revision conflicts",
+    );
+    record = await saveFilmProject(owner, record.id, {
+      ...record,
+      shots: [standalone],
+      shotOrder: [standalone.id, scene.shots[0].id],
+    });
+    assert.equal((await listFilmProjects(owner))[0].shots, 2);
+    record = await saveFilmProject(owner, record.id, {
+      ...record,
+      shots: [],
+      scenes: [
+        {
+          ...record.scenes[0],
+          coverageChecklist: { Angles: { "Eye level": true } },
+          shots: [...record.scenes[0].shots, standalone],
+        },
+      ],
+    });
+    const grouped = await getFilmProject(owner, record.id);
+    assert.equal(grouped.scenes[0].shots.length, 2);
+    assert.equal(grouped.scenes[0].coverageChecklist.Angles["Eye level"], true);
+    assert.deepEqual(grouped.shotOrder, [standalone.id, scene.shots[0].id]);
+    console.log(
+      "PASS: standalone shots, scene grouping, global order, scene checklists, and dashboard counts persist",
     );
   } finally {
     if (record) {

@@ -12,7 +12,8 @@ const collection = () => {
     );
   return db.collection("film_projects");
 };
-export const validId = (id) => /^[a-zA-Z0-9-]{1,80}$/.test(id);
+export const validId = (id) =>
+  typeof id === "string" && /^[a-zA-Z0-9-]{1,80}$/.test(id);
 const fail = (message, status = 400) => {
   throw Object.assign(new Error(message), { status });
 };
@@ -76,6 +77,9 @@ export function validateProject(input) {
     ids.add(item.id);
   };
   clean.sequences.forEach(checkEntity);
+  if (clean.shots !== undefined && !Array.isArray(clean.shots))
+    fail("Standalone shots must be a list.");
+  (clean.shots || []).forEach(checkEntity);
   const sequences = new Set(clean.sequences.map((s) => s.id));
   for (const scene of clean.scenes) {
     checkEntity(scene);
@@ -83,6 +87,20 @@ export function validateProject(input) {
       fail("Scene sequence does not exist.");
     if (!Array.isArray(scene.shots)) fail("Shots must be a list.");
     scene.shots.forEach(checkEntity);
+  }
+  if (clean.shotOrder !== undefined) {
+    const shotIds = new Set(
+      [
+        ...(clean.shots || []),
+        ...clean.scenes.flatMap((scene) => scene.shots),
+      ].map((shot) => shot.id),
+    );
+    if (
+      !Array.isArray(clean.shotOrder) ||
+      new Set(clean.shotOrder).size !== clean.shotOrder.length ||
+      clean.shotOrder.some((id) => !shotIds.has(id))
+    )
+      fail("Shot order must contain unique, existing shot IDs.");
   }
   delete clean.ownerUid;
   delete clean.revision;
@@ -108,7 +126,14 @@ export async function listFilmProjects(uid) {
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
         scenes: p.scenes?.length || 0,
-        shots: p.scenes?.reduce((n, s) => n + s.shots.length, 0) || 0,
+        shots:
+          (p.shots?.length || 0) +
+          (p.scenes?.reduce((n, s) => n + s.shots.length, 0) || 0),
+        filmed: [
+          ...(p.shots || []),
+          ...(p.scenes || []).flatMap((s) => s.shots),
+        ].filter((s) => ["Filmed", "Selected", "Edited"].includes(s.status))
+          .length,
       };
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
