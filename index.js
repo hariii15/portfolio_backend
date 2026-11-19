@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { initFirebase, isFirestoreEnabled } from './firebase.js';
 import { checkAdmin, optionalAdmin } from './auth.js';
 import filmRouter from './routes/film.js';
+import filmShareRouter from './routes/filmShare.js';
 import {
   listBlogs,
   getBlogBySlug,
@@ -31,6 +32,7 @@ const storage = isFirestoreEnabled() ? 'firestore' : 'json';
 
 const app = express();
 app.use(cors());
+app.use('/api/film-shares', express.json({ limit: '8kb' }), filmShareRouter);
 // Film records have their own authenticated, bounded parser for storyboard images.
 app.use('/api/film', checkAdmin, express.json({ limit: '900kb' }), filmRouter);
 app.use(express.json());

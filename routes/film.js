@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createShare } from '../repositories/filmShare.js';
 import {
   createFilmProject,
   deleteFilmProject,
@@ -46,6 +47,7 @@ router.get(
     res.json(await getFilmProject(req.user.uid, req.params.id)),
   ),
 );
+router.post('/:id/share', handle(async (req, res) => res.status(201).json(await createShare(req.user.uid, req.params.id, req.body || {}))));
 router.put(
   "/:id",
   handle(async (req, res) =>

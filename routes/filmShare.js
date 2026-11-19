@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import { authorizeShare, loginShare, readGallery, updateProgress } from '../repositories/filmShare.js';
+const router = Router();
+const attempts = new Map();
+router.use((req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
+router.param('id', (req, res, next, id) => /^[a-zA-Z0-9]{1,80}$/.test(id) ? next() : res.status(400).json({ error: 'Invalid link.' }));
+const handle = fn => async (req, res) => { try { await fn(req, res); } catch (e) { res.status(e.status || 500).json({ error: e.status ? e.message : 'Gallery storage is unavailable. Please try again.' }); } };
+router.post('/:id/login', handle(async (req, res) => {
+  const now = Date.now();
+  for (const [key, item] of attempts) if (item.until < now) attempts.delete(key);
+  const key = `${req.params.id}:${req.ip}`;
+  const item = attempts.get(key) || { count: 0, until: now + 15 * 60000 };
+  if (item.count >= 10) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+  item.count++; attempts.set(key, item);
+  const result = await loginShare(req.params.id, req.body || {});
+  attempts.delete(key); res.json(result);
+}));
+router.get('/:id', handle(async (req, res) => res.json(await readGallery(await authorizeShare(req.params.id, req.headers.authorization?.replace(/^Bearer /, ''))))));
+router.patch('/:id', handle(async (req, res) => res.json(await updateProgress(await authorizeShare(req.params.id, req.headers.authorization?.replace(/^Bearer /, '')), req.body))));
+export default router;
