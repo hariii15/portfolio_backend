@@ -239,35 +239,38 @@ app.post('/api/activity', checkAdmin, async (req, res) => {
   }
 });
 
+for (const roadmap of ['jayy-roadmap', 'lokitha-roadmap']) {
 // Public study progress for the Jayy ML roadmap. This intentionally has no
 // admin guard so visitors can use the roadmap without signing in.
-app.get('/api/jayy-roadmap/progress', async (req, res) => {
+app.get(`/api/${roadmap}/progress`, async (req, res) => {
   try {
-    res.json(await getRoadmapProgress());
+    res.json(await getRoadmapProgress(roadmap));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.patch('/api/jayy-roadmap/progress', async (req, res) => {
+app.patch(`/api/${roadmap}/progress`, async (req, res) => {
   try {
     const { itemId, checked } = req.body || {};
     if (typeof checked !== 'boolean') {
       return res.status(400).json({ error: 'checked must be a boolean.' });
     }
-    res.json(await setRoadmapProgress(itemId, checked));
+    res.json(await setRoadmapProgress(itemId, checked, roadmap));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
 
-app.delete('/api/jayy-roadmap/progress', async (req, res) => {
+app.delete(`/api/${roadmap}/progress`, async (req, res) => {
   try {
-    res.json(await clearRoadmapProgress());
+    res.json(await clearRoadmapProgress(roadmap));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+}
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

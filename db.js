@@ -7,7 +7,10 @@ const __dirname = path.dirname(__filename);
 
 const DB_PATH = path.resolve(__dirname, 'blogs.json');
 const ACTIVITY_PATH = path.resolve(__dirname, 'activity.json');
-const ROADMAP_PROGRESS_PATH = path.resolve(__dirname, 'roadmap-progress.json');
+const roadmapPath = (name) => {
+  if (!['jayy-roadmap', 'lokitha-roadmap'].includes(name)) throw new Error('Unknown roadmap.');
+  return path.resolve(__dirname, name === 'jayy-roadmap' ? 'roadmap-progress.json' : 'lokitha-roadmap-progress.json');
+};
 
 export async function readDB() {
   try {
@@ -43,9 +46,9 @@ export async function writeActivity(data) {
   await fs.writeFile(ACTIVITY_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
-export async function readRoadmapProgress() {
+export async function readRoadmapProgress(name = 'jayy-roadmap') {
   try {
-    const data = await fs.readFile(ROADMAP_PROGRESS_PATH, 'utf8');
+    const data = await fs.readFile(roadmapPath(name), 'utf8');
     return JSON.parse(data);
   } catch (error) {
     if (error.code === 'ENOENT') return { items: {} };
@@ -53,8 +56,8 @@ export async function readRoadmapProgress() {
   }
 }
 
-export async function writeRoadmapProgress(data) {
-  await fs.writeFile(ROADMAP_PROGRESS_PATH, JSON.stringify(data, null, 2), 'utf8');
+export async function writeRoadmapProgress(data, name = 'jayy-roadmap') {
+  await fs.writeFile(roadmapPath(name), JSON.stringify(data, null, 2), 'utf8');
 }
 
 export function generateSlug(title) {
